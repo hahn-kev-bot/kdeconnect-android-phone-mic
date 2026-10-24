@@ -54,11 +54,15 @@ object NotificationHelper {
             .setLightsEnabled(false)
             .setSound(null, null)
             .build()
+        val microphoneChannel = NotificationChannelCompat.Builder(Channels.MICROPHONE, NotificationManagerCompat.IMPORTANCE_LOW)
+            .setName(context.getString(R.string.notification_channel_microphone))
+            .setVibrationEnabled(false)
+            .build()
         val channels = listOf(
             persistentChannel,
             defaultChannel, mediaChannel, fileTransferDownloadChannel, fileTransferDownloadCompleteChannel, fileTransferUploadChannel,
             fileTransferErrorChannel, receiveNotificationChannel, highPriorityChannel,
-            continueWatchingChannel
+            continueWatchingChannel, microphoneChannel
         )
 
         val nm = NotificationManagerCompat.from(context)
@@ -96,5 +100,6 @@ object NotificationHelper {
         const val RECEIVENOTIFICATION: String = "receive"
         const val HIGHPRIORITY: String = "highpriority"
         const val CONTINUEWATCHING: String = "continuewatching"
+        const val MICROPHONE: String = "microphone"
     }
 }
