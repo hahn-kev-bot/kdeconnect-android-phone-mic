@@ -15,6 +15,7 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.AudioTimestamp
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
@@ -273,8 +274,27 @@ class MicrophoneService : Service() {
                     Log.e(LOG_TAG, "AudioRecord.read failed: $n")
                     return -1
                 }
+                framesRead += n / BYTES_PER_FRAME
+                if (++reads % 200L == 0L) {
+                    logCaptureLatency()
+                }
                 return n
             }
+        }
+
+        private var framesRead = 0L // guarded by lock
+        private var reads = 0L // guarded by lock
+
+        /** Every ~2 s: how far behind the recorder's own clock our reads are (the capture-side delay). */
+        private fun logCaptureLatency() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return
+            val ts = android.media.AudioTimestamp()
+            if (record.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC) != AudioRecord.SUCCESS) return
+            // ts.framePosition was captured at ts.nanoTime; frames we have consumed so far = framesRead
+            val behindFrames = ts.framePosition - framesRead
+            val sinceTsMs = (System.nanoTime() - ts.nanoTime) / 1_000_000.0
+            val behindMs = behindFrames * 1000.0 / SAMPLE_RATE + sinceTsMs
+            Log.i(LOG_TAG, "Capture delay: reads are %.0f ms behind the recorder (buffer %d frames)".format(behindMs, record.bufferSizeInFrames))
         }
 
         /** Stops and releases the recorder; subsequent reads return -1. Idempotent. */
@@ -322,7 +342,8 @@ class MicrophoneService : Service() {
                 }
                 val bufferSize = max(minBufferSize * 2, CHUNK_BYTES * 8)
                 val record = try {
-                    AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, encoding, bufferSize)
+                    // VOICE_RECOGNITION skips the voice-call processing chain, which keeps capture latency low
+                    AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE, channelConfig, encoding, bufferSize)
                 } catch (e: IllegalArgumentException) {
                     Log.e(LOG_TAG, "Couldn't create AudioRecord", e)
                     return null
