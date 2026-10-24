@@ -227,7 +227,7 @@ class MicrophoneService : Service() {
     }
 
     /**
-     * An [InputStream] over an [AudioRecord]. Every read() returns at most one 20 ms chunk, so a
+     * An [InputStream] over an [AudioRecord]. Every read() returns at most one 10 ms chunk, so a
      * call blocks only until that much audio is available, and returns -1 once the stream is shut down.
      */
     private class MicrophoneStream private constructor(private val record: AudioRecord) : InputStream() {
@@ -292,8 +292,8 @@ class MicrophoneService : Service() {
             const val CHANNELS = 1
             const val FORMAT = "pcm_s16le"
             private const val BYTES_PER_FRAME = 2 * CHANNELS
-            private const val CHUNK_MS = 20
-            private const val CHUNK_BYTES = SAMPLE_RATE * CHUNK_MS / 1000 * BYTES_PER_FRAME // 1920
+            private const val CHUNK_MS = 10
+            private const val CHUNK_BYTES = SAMPLE_RATE * CHUNK_MS / 1000 * BYTES_PER_FRAME // 960
 
             @RequiresPermission(Manifest.permission.RECORD_AUDIO)
             fun open(): MicrophoneStream? {

@@ -182,6 +182,8 @@ class LanLink(
             server.setSoTimeout(10 * 1000)
 
             payloadSocket = server.accept()
+            // Payloads may be live streams of small chunks (e.g. microphone audio); don't let Nagle hold them back
+            payloadSocket.tcpNoDelay = true
 
             // Convert to SSL if needed
             payloadSocket = convertToSslSocket(context, payloadSocket, deviceId,
