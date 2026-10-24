@@ -236,6 +236,7 @@ class MicrophoneService : Service() {
 
         private val lock = Any()
         private var released = false // guarded by lock
+        private var flushed = false // guarded by lock
         private val closeReported = AtomicBoolean(false)
 
         override fun read(): Int {
@@ -251,6 +252,21 @@ class MicrophoneService : Service() {
             synchronized(lock) {
                 if (released) {
                     return -1
+                }
+                if (!flushed) {
+                    // The recorder has been running since Start, but the first read only happens once the
+                    // remote end connected to the payload socket. Everything captured before that is stale
+                    // and would become permanent delay, so throw it away.
+                    flushed = true
+                    val scratch = ByteArray(CHUNK_BYTES * 4)
+                    var discarded = 0
+                    while (true) {
+                        val got = record.read(scratch, 0, scratch.size, AudioRecord.READ_NON_BLOCKING)
+                        if (got <= 0) break
+                        discarded += got
+                        if (got < scratch.size) break
+                    }
+                    Log.i(LOG_TAG, "Discarded $discarded bytes of audio captured before the stream connected")
                 }
                 val n = record.read(b, off, min(len, CHUNK_BYTES))
                 if (n < 0) {
@@ -304,7 +320,7 @@ class MicrophoneService : Service() {
                     Log.e(LOG_TAG, "48 kHz mono PCM16 capture is not supported on this device ($minBufferSize)")
                     return null
                 }
-                val bufferSize = max(minBufferSize * 4, CHUNK_BYTES * 8)
+                val bufferSize = max(minBufferSize * 2, CHUNK_BYTES * 8)
                 val record = try {
                     AudioRecord(MediaRecorder.AudioSource.MIC, SAMPLE_RATE, channelConfig, encoding, bufferSize)
                 } catch (e: IllegalArgumentException) {
